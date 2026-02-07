@@ -15,11 +15,11 @@ if ! grep -q "APP_KEY=base64" .env; then
     php artisan key:generate
 fi
 
-# Wait for MySQL to be ready
-echo "Waiting for MySQL..."
+# Wait for PostgreSQL to be ready
+echo "Waiting for PostgreSQL..."
 max_tries=30
 count=0
-while ! php -r "try { new PDO('mysql:host=db;port=3306;dbname=aethron', 'laravel', 'password'); echo 'Connected'; exit(0); } catch(Exception \$e) { echo 'Connection failed: ' . \$e->getMessage(); exit(1); }" > /dev/null 2>&1; do
+while ! php -r "try { new PDO('pgsql:host=db;port=5432;dbname=aethron', 'postgres', 'secret'); echo 'Connected'; exit(0); } catch(Exception \$e) { echo 'Connection failed: ' . \$e->getMessage(); exit(1); }" > /dev/null 2>&1; do
     echo "Waiting for database connection... ($count/$max_tries)"
     sleep 2
     count=$((count+1))
@@ -29,7 +29,7 @@ while ! php -r "try { new PDO('mysql:host=db;port=3306;dbname=aethron', 'laravel
         break
     fi
 done
-echo "MySQL connected or timed out, proceeding..."
+echo "PostgreSQL connected or timed out, proceeding..."
 
 # Run migrations
 php artisan migrate --force
