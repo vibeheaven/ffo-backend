@@ -10,6 +10,7 @@ use Tests\TestCase;
 class RegistrationTest extends TestCase
 {
     use RefreshDatabase, WithFaker;
+    use \Illuminate\Foundation\Testing\WithoutMiddleware;
 
     public function test_user_can_register_with_minimal_data()
     {
