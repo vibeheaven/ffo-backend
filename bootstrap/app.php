@@ -6,7 +6,6 @@ use Illuminate\Foundation\Configuration\Middleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
@@ -20,38 +19,59 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->shouldRenderJsonWhen(function ($request, $e) {
-            if ($request->is('api/*')) {
-                return true;
+        // Tüm hatalar JSON olarak dönsün (API ve web dahil).
+        $exceptions->shouldRenderJsonWhen(fn () => true);
+
+        // Hem exception hem response status kodu üzerinden JSON hata döndür.
+        $exceptions->render(function (\Throwable $e, $request) {
+            $status = 500;
+            $message = 'Something went wrong.';
+
+            if ($e instanceof \Illuminate\Http\Exceptions\ThrottleRequestsException) {
+                $status = 429;
+                $message = 'Too many requests. Please try again later.';
+            } elseif (
+                (class_exists(\Illuminate\Foundation\Http\Exceptions\MaintenanceModeException::class) && $e instanceof \Illuminate\Foundation\Http\Exceptions\MaintenanceModeException) ||
+                (class_exists(\Illuminate\Foundation\Http\MaintenanceModeBypassCookie::class) && $e instanceof \Illuminate\Foundation\Http\MaintenanceModeBypassCookie)
+            ) {
+                $status = 503;
+                $message = 'Service is currently under maintenance. Please try again later.';
+            } elseif ($e instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException) {
+                $status = 404;
+                $message = 'Route not found';
+            } elseif ($e instanceof \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException) {
+                $status = 405;
+                $message = 'Method not allowed';
+            } elseif ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpException) {
+                $status = $e->getStatusCode();
+                $message = $e->getMessage() ?: $message;
             }
 
-            return $request->expectsJson();
+            if (method_exists($e, 'getStatusCode')) {
+                $bodyStatus = $e->getStatusCode();
+                if (!empty($bodyStatus) && is_int($bodyStatus) && $bodyStatus !== $status) {
+                    $status = $bodyStatus;
+                }
+            }
+            if (method_exists($e, 'getMessage')) {
+                $bodyMessage = $e->getMessage();
+                if (!empty($bodyMessage)) {
+                    $message = $bodyMessage;
+                }
+            }
+
+            return response()->json([
+                'status' => 'error',
+                'message' => $message,
+                'exception' => config('app.debug') ? get_class($e) : null,
+                'trace' => config('app.debug') ? $e->getTrace() : null,
+                'code' => $status,
+            ], $status);
         });
 
-        $exceptions->render(function (\Illuminate\Http\Exceptions\ThrottleRequestsException $e, $request) {
-            if ($request->is('api/*') || $request->expectsJson()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Too many requests. Please try again later.',
-                ], 429);
-            }
-        });
-
-        $exceptions->render(function (\Illuminate\Foundation\Http\Exceptions\MaintenanceModeException $e, $request) {
-            if ($request->is('api/*') || $request->expectsJson()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Service is currently under maintenance. Please try again later.',
-                ], 503);
-            }
-        });
-
-        $exceptions->report(function (Throwable $e) {
-            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpException && $e->getStatusCode() === 500) {
-                 \Illuminate\Support\Facades\Artisan::call('down');
-            }
-                if (!$e instanceof \Symfony\Component\HttpKernel\Exception\HttpException) {
-                 \Illuminate\Support\Facades\Artisan::call('down');
-            }
-        });
-    })->create();
+        // İsteğe bağlı, özel bir raporlama logic'iniz varsa aşağıya taşıyınız.
+        // $exceptions->report(function (\Throwable $e) {
+        //     // Report logic if necessary
+        // });
+    })
+    ->create();

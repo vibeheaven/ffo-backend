@@ -4,6 +4,10 @@ namespace App\Domain\User\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Domain\Project\Models\Project;
+use App\Domain\Quota\Models\ProjectQuota;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
@@ -88,5 +92,15 @@ class User extends Authenticatable implements JWTSubject
     protected static function newFactory()
     {
         return \Database\Factories\UserFactory::new();
+    }
+
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class);
+    }
+
+    public function quota(): HasOne
+    {
+        return $this->hasOne(ProjectQuota::class);
     }
 }

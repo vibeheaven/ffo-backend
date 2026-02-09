@@ -3,37 +3,34 @@
 namespace App\Domain\Auth\Actions;
 
 use App\Domain\Auth\DataTransferObjects\RegisterDTO;
+use App\Domain\Project\Actions\CreateDefaultProjectAction;
+use App\Domain\Quota\Actions\CreateDefaultQuotaAction;
 use App\Domain\User\Models\User;
 use Illuminate\Support\Facades\Hash;
 
 class RegisterAction
 {
-    public function execute(RegisterDTO $data): array
+    public function __construct(
+        protected CreateDefaultProjectAction $createDefaultProjectAction,
+        protected CreateDefaultQuotaAction $createDefaultQuotaAction
+    ) {}
+
+    public function execute(RegisterDTO $data): User
     {
         $userData = [
             'name' => $data->name,
             'email' => $data->email,
             'password' => Hash::make($data->password),
-            'registration_step' => 5, // Completed
-            'language' => $data->language,
+            'registration_step' => 5, 
         ];
 
-        if ($data->gender) {
-            $userData['gender'] = $data->gender;
-        }
-        if ($data->birthday) {
-            $userData['birthday'] = $data->birthday;
-        }
-        if ($data->location) {
-            $userData['location'] = $data->location;
-        }
-
-        if ($data->profile_photo) {
-            $path = $data->profile_photo->store('profile-photos', 'public');
-            $userData['profile_photo_path'] = $path;
-        }
-
         $user = User::create($userData);
+
+        // Default quota oluştur
+        $this->createDefaultQuotaAction->execute($user);
+
+        // Default proje oluştur
+        $this->createDefaultProjectAction->execute($user);
 
         return $user;
     }
