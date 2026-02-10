@@ -4,8 +4,11 @@ namespace App\Domain\User\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Domain\ApiKey\Models\ApiKey;
+use App\Domain\Contract\Models\Contract;
 use App\Domain\Project\Models\Project;
 use App\Domain\Quota\Models\ProjectQuota;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -102,5 +105,53 @@ class User extends Authenticatable implements JWTSubject
     public function quota(): HasOne
     {
         return $this->hasOne(ProjectQuota::class);
+    }
+
+    public function contracts(): BelongsToMany
+    {
+        return $this->belongsToMany(Contract::class, 'user_contracts')
+            ->withPivot('accepted_at', 'ip_address')
+            ->withTimestamps();
+    }
+
+    public function apiKeys(): HasMany
+    {
+        return $this->hasMany(ApiKey::class);
+    }
+
+    /**
+     * Root kullanıcı mı kontrol et
+     */
+    public function isRootUser(): bool
+    {
+        $rootUsers = config('app.root', []);
+        return in_array($this->id, $rootUsers);
+    }
+
+    /**
+     * Aktif sözleşmeleri kabul etmiş mi kontrol et
+     */
+    public function hasAcceptedActiveContracts(): bool
+    {
+        $activeContractsCount = Contract::where('is_active', true)->count();
+        
+        if ($activeContractsCount === 0) {
+            return true; // Aktif sözleşme yoksa geçerli kabul et
+        }
+
+        $acceptedContractsCount = $this->contracts()
+            ->where('is_active', true)
+            ->wherePivot('accepted_at', '!=', null)
+            ->count();
+
+        return $acceptedContractsCount >= $activeContractsCount;
+    }
+
+    /**
+     * API key'i var mı kontrol et
+     */
+    public function hasApiKeys(): bool
+    {
+        return $this->apiKeys()->exists();
     }
 }

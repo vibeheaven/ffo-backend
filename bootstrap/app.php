@@ -17,6 +17,13 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\SecureHeaders::class,
             \App\Http\Middleware\SanitizeInput::class,
         ]);
+        
+        $middleware->alias([
+            'phone.verified' => \App\Http\Middleware\EnsurePhoneVerified::class,
+            'contract.accepted' => \App\Http\Middleware\EnsureContractAccepted::class,
+            'root.user' => \App\Http\Middleware\IsRootUser::class,
+            'api.keys' => \App\Http\Middleware\EnsureHasApiKeys::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Tüm hatalar JSON olarak dönsün (API ve web dahil).

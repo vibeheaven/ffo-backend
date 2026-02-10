@@ -21,6 +21,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\VerifyResetCodeRequest;
+use App\Services\OtpService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use OpenApi\Annotations as OA;
@@ -32,7 +33,8 @@ class AuthController extends Controller
    
     public function login(
         LoginRequest $request,
-        CreateDefaultProjectAction $createDefaultProjectAction
+        CreateDefaultProjectAction $createDefaultProjectAction,
+        OtpService $otpService
     ): JsonResponse {
         $credentials = $request->only('email', 'password');
 
@@ -45,15 +47,33 @@ class AuthController extends Controller
         // Eğer proje yoksa default proje oluştur
         $createDefaultProjectAction->execute($user);
         
+        // Telefon numarası varsa ve doğrulanmamışsa OTP gönder
+        if (!empty($user->phone) && is_null($user->phone_verified_at)) {
+            try {
+                $otpService->sendOtp($user->phone);
+            } catch (\Exception $e) {
+                // OTP gönderimi başarısız olsa bile login devam eder
+            }
+        }
+        
         return $this->respondWithToken($token, $user);
     }
     
    
-    public function register(\App\Http\Requests\Auth\RegisterRequest $request, \App\Domain\Auth\Actions\RegisterAction $action): JsonResponse
+    public function register(\App\Http\Requests\Auth\RegisterRequest $request, \App\Domain\Auth\Actions\RegisterAction $action, OtpService $otpService): JsonResponse
     {
         $user = $action->execute(\App\Domain\Auth\DataTransferObjects\RegisterDTO::fromRequest($request->validated(), $request->file('profile_photo')));
         
-        $token = auth('api')->login($user);        
+        $token = auth('api')->login($user);
+        
+        // Telefon numarası varsa ve doğrulanmamışsa OTP gönder
+        if (!empty($user->phone) && is_null($user->phone_verified_at)) {
+            try {
+                $otpService->sendOtp($user->phone);
+            } catch (\Exception $e) {
+                // OTP gönderimi başarısız olsa bile kayıt devam eder
+            }
+        }
 
         return response()->json([
             'status' => 'success',
@@ -105,6 +125,8 @@ class AuthController extends Controller
 
     protected function respondWithToken($token, $user): JsonResponse
     {
+        $phoneVerificationRequired = !empty($user->phone) && is_null($user->phone_verified_at);
+        
         return response()->json([
             'status' => 'success',
             'data' => [
@@ -114,6 +136,7 @@ class AuthController extends Controller
                     'type' => 'bearer',
                     'expires_in' => auth('api')->factory()->getTTL() * 60,
                 ],
+                'phone_verification_required' => $phoneVerificationRequired,
             ],
         ]);
     }
