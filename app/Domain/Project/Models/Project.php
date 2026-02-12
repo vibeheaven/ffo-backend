@@ -22,10 +22,10 @@ class Project extends Model
                 return; // Hard delete - cascade zaten çalışıyor
             }
             
-            // Soft delete - cascade soft delete business ve alt kayıtları
-            $business = $project->business()->withTrashed()->first();
-            if ($business && !$business->trashed()) {
-                $business->delete(); // Bu da cascade soft delete'i tetikleyecek
+            // Soft delete - cascade soft delete influencer
+            $influencer = $project->influencer()->withTrashed()->first();
+            if ($influencer && !$influencer->trashed()) {
+                $influencer->delete();
             }
         });
     }
@@ -53,8 +53,8 @@ class Project extends Model
         return $this->hasMany(ProjectLog::class);
     }
 
-    public function business(): HasOne
+    public function influencer(): HasOne
     {
-        return $this->hasOne(\App\Domain\Business\Models\Business::class);
+        return $this->hasOne(\App\Domain\Influencer\Models\Influencer::class);
     }
 }
